@@ -1,0 +1,63 @@
+version: "3.8"
+
+services:
+  dub-app:
+    build: .
+    container_name: dub-app
+    environment:
+      - DATABASE_URL=mysql://dbuser:dbpassword@dub-db/dub_sh
+      - UPSTASH_REDIS_REST_URL=redis://dub-cache:6379/1
+      - UPSTASH_REDIS_REST_TOKEN=x
+    ports:
+      - 3000:3000
+    networks:
+      - dub
+    depends_on:
+      dub-db:
+        condition: service_healthy
+      dub-cache:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+
+  dub-db:
+    image: mysql:8.0
+    container_name: dub-db
+    command: --default-authentication-plugin=mysql_native_password
+    restart: unless-stopped
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_USER=dbuser
+      - MYSQL_PASSWORD=dbpassword
+      - MYSQL_DATABASE=dub_sh
+    volumes:
+      - ./container-storage/dub-db/data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysql" ,"-h", "dub-db", "-P", "3306", "-u", "root", "-prootpassword", "-e", "SELECT VERSION()"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - dub
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+
+  dub-cache:
+    image: redis:6.0
+    container_name: dub-cache
+    networks:
+      - dub
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+
+networks:
+  dub:
+    name: dub
